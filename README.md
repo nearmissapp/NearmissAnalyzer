@@ -1,7 +1,3 @@
-아래는 첨부한 파이썬 코드를 기반으로 작성한 README 파일 내용입니다.
-
----
-
 # Near-Miss Reporting System
 
 ## 개요
