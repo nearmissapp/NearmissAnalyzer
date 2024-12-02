@@ -3,6 +3,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 from prompts_and_tools import SYSTEM_PROMPTS, USER_PROMPTS, TOOLS
+from docx import Document
 
 # .env 파일 로드
 load_dotenv()
@@ -14,6 +15,7 @@ class riskAnalysisProcessor:
         :param api_key: OpenAI API 키
         """
         self.api_key = os.getenv("OPENAI_API_KEY")
+
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY가 .env 파일에 설정되지 않았습니다.")
 
@@ -117,16 +119,42 @@ class riskAnalysisProcessor:
 
 
 
-    def retrieve_information(self, formatted_risks_json):
+    def retrieve_information(self, formatted_risks_json, docSearchKeyword):
+        def read_docx(file_path):
+            try:
+                # 파일 불러오기
+                doc = Document(file_path)
+                
+                # 모든 문단(paragraphs) 읽기
+                full_text = []
+                for para in doc.paragraphs:
+                    full_text.append(para.text)
+                
+                return '\n'.join(full_text)
+            except Exception as e:
+                return f"오류 발생: {e}"
+        # print(formatted_risks_json, docSearchKeyword)
         """
         JSON으로 구성된 잠재적 위험 요소 분석 결과에서 관련 담당자 정보를 검색하고 출력하는 메서드.
         :param formatted_risks_json: JSON 형식의 위험 요소 분석 결과
         :return: OpenAI API 응답
         """
         system_prompt = SYSTEM_PROMPTS["retrieve_information"]
-        user_prompt = USER_PROMPTS["retrieve_information"] + str(formatted_risks_json)
-        tools=[TOOLS["retrieve_information"]]
+        user_prompt = ""
         
+        # docSearchKeyword를 사용하여 문서 읽기
+        try:
+            doc_text = read_docx(f"documents/니어미스 사례집 _ {docSearchKeyword}.docx")
+            user_prompt += "\n### Below is the document you should refer to. Based on the summarized risks below, find the **mitigationPlan**, **manager**, and **documents** in the above document, and respond in the specified format.: \n" + f"#### document title : 니어미스 사례집 _ {docSearchKeyword}.docx\n #### document contents : \n"+ doc_text
+
+        except Exception as e:
+            print(f"문서 읽기 중 오류 발생: {str(e)}")
+            return {"error": f"문서 읽기 중 오류 발생: {str(e)}"}
+        user_prompt += "\n" + USER_PROMPTS["retrieve_information"]
+        user_prompt += str(formatted_risks_json)
+        
+        tools=[TOOLS["retrieve_information"]]
+        # print(system_prompt, user_prompt, tools)
         try:
             response = self.client.chat.completions.create(
                 model="gpt-4o-2024-11-20",
@@ -142,6 +170,8 @@ class riskAnalysisProcessor:
                 frequency_penalty=0,
                 presence_penalty=0
             )
+            print(response.json())
             return response
         except Exception as e:
+            print(e)
             return {"error": str(e)}
