@@ -2,7 +2,7 @@ import base64
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
-from prompts_and_tools import SYSTEM_PROMPTS, USER_PROMPTS, TOOLS
+from prompts_and_tools import AnalyzeImageRisks, FormatRiskAsJson, RetrieveInformation
 from docx import Document
 
 # .env 파일 로드
@@ -43,10 +43,12 @@ class riskAnalysisProcessor:
         :param image_path: 분석할 이미지 파일 경로
         :return: OpenAI API 응답
         """
+        print("=== AnalyzeImageRisks ===")
+        prompt_manager = AnalyzeImageRisks()
+        system_prompt = prompt_manager.get_system_prompt()
+        user_prompt = prompt_manager.get_user_prompt()
         image_base64 = self.encode_image_to_base64(image_path)
         
-        system_prompt = SYSTEM_PROMPTS["analyze_image_risks"]
-        user_prompt = USER_PROMPTS["analyze_image_risks"]
         #print(system_prompt, user_prompt)
         try:
             response = self.client.chat.completions.create(
@@ -86,12 +88,12 @@ class riskAnalysisProcessor:
         :return: JSON 포맷의 OpenAI API 응답
         """
 
-        system_prompt = SYSTEM_PROMPTS["format_risk_as_json"]
-        user_prompt = USER_PROMPTS["format_risk_as_json"] + "[input_text]:\n" + str(analyzed_image_risks) + "\nPlease organize this information into a **structured JSON** format as specified above. "
-        tools=[TOOLS["format_risk_as_json"]]
-
+        prompt_manager = FormatRiskAsJson()
+        system_prompt = prompt_manager.get_system_prompt()
+        user_prompt = prompt_manager.get_user_prompt(analyzed_image_risks)
+        tools = [prompt_manager.get_tool()]
         
-        # print(system_prompt, user_prompt, tools)
+        #print(system_prompt, user_prompt, tools)
         try:
             # 메시지 정의
             messages = [
@@ -138,23 +140,22 @@ class riskAnalysisProcessor:
         JSON으로 구성된 잠재적 위험 요소 분석 결과에서 관련 담당자 정보를 검색하고 출력하는 메서드.
         :param formatted_risks_json: JSON 형식의 위험 요소 분석 결과
         :return: OpenAI API 응답
-        """
-        system_prompt = SYSTEM_PROMPTS["retrieve_information"]
-        user_prompt = ""
-        
+        """        
         # docSearchKeyword를 사용하여 문서 읽기
         try:
             doc_text = read_docx(f"documents/니어미스 사례집 _ {docSearchKeyword}.docx")
-            user_prompt += "\n### Below is the document you should refer to. Based on the summarized risks below, find the **mitigationPlan**, **manager**, and **documents** in the above document, and respond in the specified format.: \n" + f"#### document title : 니어미스 사례집 _ {docSearchKeyword}.docx\n #### document contents : \n"+ doc_text
-
+           
         except Exception as e:
             print(f"문서 읽기 중 오류 발생: {str(e)}")
+            doc_text = ""
             return {"error": f"문서 읽기 중 오류 발생: {str(e)}"}
-        user_prompt += "\n" + USER_PROMPTS["retrieve_information"]
-        user_prompt += str(formatted_risks_json)
         
-        tools=[TOOLS["retrieve_information"]]
-        # print(system_prompt, user_prompt, tools)
+        prompt_manager = RetrieveInformation()
+        system_prompt = prompt_manager.get_system_prompt()
+        user_prompt = prompt_manager.get_user_prompt(docSearchKeyword, doc_text, formatted_risks_json)
+        tools = [prompt_manager.get_tool()]
+        
+        #print(system_prompt, user_prompt, tools)
         try:
             response = self.client.chat.completions.create(
                 model="gpt-4o-2024-11-20",
