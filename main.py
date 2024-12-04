@@ -128,7 +128,9 @@ def retrieve_information(processor, json_response):
 
 
 print("=== 니어미스 신고 프로그램 ===")
-file_path = "image/test1.jpeg"  # 고정된 이미지 경로
+# file_path = "image/test1.jpeg"  # 가스배관 작업 이미지
+#file_path = "image/test9.jpg"  # 기름 있는 이미지
+file_path = "image/test10.PNG"  # 부식 난간 이미지
 
 # Step 1: 이미지 읽기 및 클래스 초기화
 image, save_path, processor = initialize_processor_and_load_image(file_path)
