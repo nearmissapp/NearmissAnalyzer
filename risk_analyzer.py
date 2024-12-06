@@ -8,7 +8,6 @@ from docx import Document
 # .env 파일 로드
 load_dotenv()
 
-
 class RiskAnalysisProcessor:
     def __init__(self):
         """
