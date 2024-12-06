@@ -1,6 +1,7 @@
 from PIL import Image
 import json
-from riskAnalysisProcessor import RiskAnalysisProcessor  # RiskAnalysisProcessor 클래스 가져오기
+from risk_analyzer import RiskAnalysisProcessor  # RiskAnalysisProcessor 클래스 가져오기
+from db_writer import DatabaseManager
 
 # 에러 처리 함수
 def handle_error(message, exception=None):
@@ -89,6 +90,19 @@ def retrieve_information(processor, json_response):
 
     return all_nearmiss_details
 
+# Step 5: 사진 및 기타 정보 입력
+def add_image_to_entries(nearmiss_response, image_base64):
+    """니어미스 응답에 이미지 정보를 추가합니다."""
+    for entry in nearmiss_response:
+        entry["image_base64"] = image_base64
+
+# Step 6: 데이터베이스에 저장
+def save_to_database(nearmiss_response, db_config):
+    """니어미스 응답을 데이터베이스에 저장합니다."""
+    db_manager = DatabaseManager(db_config)
+    for entry in nearmiss_response:
+        db_manager.save(entry)
+
 print("=== 니어미스 신고 프로그램 ===")
 file_path = "image/test1.jpeg"
 
@@ -105,8 +119,17 @@ json_response = convert_analysis_to_json(processor, analysis_response)
 nearmiss_response = retrieve_information(processor, json_response)
 
 # Step 5: 사진 및 기타 정보 입력
-for entry in nearmiss_response:
-    entry["image_base64"] = image_base64
+add_image_to_entries(nearmiss_response, image_base64)
+
+# Step 6: 데이터베이스에 저장
+db_config = {
+    "host": "222.122.202.31",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "",
+    "port": 5432
+}
+save_to_database(nearmiss_response, db_config)
 
 # 결과 확인
 print("\n=== 결과 확인 ===")
@@ -114,3 +137,8 @@ for entry in nearmiss_response:
     entry_copy = entry.copy()
     entry_copy["image_base64"] = entry["image_base64"][:20] + "..."
     print(json.dumps(entry_copy, indent=4, ensure_ascii=False))
+
+
+
+
+
