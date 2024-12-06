@@ -174,7 +174,7 @@ class PromptManager:
                 The following is a **Risks JSON** containing analyzed risks and recommendations. Summarize this information using the specified format.
 
                 ## Document Information 
-                The following is the content of the document. The document contains details about the personnel responsible for potential risks and past risk cases.
+                The following is the content of the document. The document contains details about the managers responsible for potential risks and past risk cases.
 
                 ### Output Schema:
                 [
@@ -235,12 +235,16 @@ class PromptManager:
                                                 "type": "string",
                                                 "description": "Department of the manager."
                                             }},
-                                            "contact": {{
+                                            "phonenumber": {{
                                                 "type": "string",
-                                                "description": "Contact information of the manager."
+                                                "description": "Contact phone number of the manager."
+                                            }},
+                                            "email": {{
+                                                "type": "string",
+                                                "description": "Contact email of the manager."
                                             }}
                                         }},
-                                        "required": ["name", "department", "contact"]
+                                        "required": ["name", "department", "phonenumber", "email"]
                                     }}
                                 }},
                                 "documents": {{
@@ -398,12 +402,16 @@ class PromptManager:
                                                         "type": "string",
                                                         "description": "Department of the manager."
                                                     },
-                                                    "contact": {
+                                                    "phonenumber": {
                                                         "type": "string",
-                                                        "description": "Contact information of the manager."
+                                                        "description": "Contact phone number of the manager."
+                                                    },
+                                                    "email": {
+                                                        "type": "string",
+                                                        "description": "Contact email of the manager."
                                                     }
                                                 },
-                                                "required": ["name", "department", "contact"]
+                                                "required": ["name", "department", "phonenumber", "email"]
                                             }
                                         },
                                         "documents": {
