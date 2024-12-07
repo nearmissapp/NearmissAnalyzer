@@ -1,490 +1,184 @@
-# prompts_and_tools.py
+# risk_analyzer.py
 
-class PromptManager:
+import base64
+import os
+from openai import OpenAI
+from dotenv import load_dotenv
+from prompts_and_tools import AnalyzeImageRisks, FormatRiskAsJson, RetrieveInformation
+from docx import Document
+
+# .env 파일 로드
+load_dotenv()
+
+class RiskAnalysisProcessor:
     def __init__(self):
-        self.system_prompts = {
-            "analyze_image_risks": """
+        """
+        클래스 초기화 메서드
+        """
+        self.api_key = os.getenv("OPENAI_API_KEY")
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY가 .env 파일에 설정되지 않았습니다.")
 
-                You are an expert with a PhD-level knowledge in "industrial safety" and "risk assessment."
-                **Task**: Analyze the provided image and generate a comprehensive safety risk analysis report based on the following criteria:
-                **Requirements**:
-                1. **Risk Elements Identification**: Identify all potential risk elements visible in the image. For example, "slippery surface," "worker operating at height," etc. Provide a detailed description for each.
-                2. **Risk Level Assessment**: Assess how dangerous each risk element is by categorizing it with a numeric scale from 1 to 5, where 5 indicates the most critical risk and 1 indicates a minimal risk. Provide a brief explanation for each classification:
-                    - **5 (Critical)**: A situation where an accident or injury is imminent and could occur immediately.
-                    - **4 (High)**: A situation where an accident or injury is likely to occur in the near future.
-                    - **3 (Medium)**: A situation where there is a 50% probability of an accident occurring.
-                    - **2 (Low)**: A situation where an accident is unlikely but still possible under rare circumstances.
-                    - **1 (Minimal)**: A situation with very low or negligible risk of accident or injury.
-                3. **Risk Scenario Simulation**: For each identified risk, simulate a potential accident or incident scenario. Example: 'A worker might slip on the wet surface and sustain injuries.'
-                4. **Mitigation Measures**: Propose specific safety measures or actions to address each identified risk. For example, "Slippery surface: Install anti-slip mats or place warning signs."
-           
-            """,
-            "format_risk_as_json": """
+        # OpenRouter API
+        self.client = OpenAI(
+            # base_url="https://openrouter.ai/api/v1", #다시 openai api로 변경됨.
+            api_key=self.api_key
+        )
 
-                You are a highly skilled assistant specializing in converting plain-text risk analysis into a structured JSON format.
-                Your task is to convert the provided risk analysis report into a structured JSON format, extracting the following information:
-                - The identified risks and their severity.
-                - Suggested mitigation measures for each risk.
-                Ensure that the format adheres to the schema provided by the user in the input.
-                Focus on accuracy, clarity, and adherence to the schema, and ignore irrelevant details.
+    @staticmethod
+    def encode_image_to_base64(image_path):
+        """
+        이미지 파일을 Base64로 인코딩하는 메서드.
+        :param image_path: 인코딩할 이미지 파일 경로
+        :return: Base64 인코딩된 이미지 문자열
+        """
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode("utf-8")
 
-            """,
-            "retrieve_information": """
+    def analyze_image_risks(self, image_path):
+        """
+        이미지의 잠재적 위험 요소를 분석하는 메서드.
+        :param image_path: 분석할 이미지 파일 경로
+        :return: OpenAI API 응답
+        """
+        prompt_manager = AnalyzeImageRisks()
+        system_prompt = prompt_manager.get_system_prompt()
+        user_prompt = prompt_manager.get_user_prompt()
+        image_base64 = self.encode_image_to_base64(image_path)
 
-                You are an assistant skilled in summarizing structured risk analysis data. 
-                Your task is to generate a concise summary based on a structured JSON array containing safety-related risks, risk levels, simulation scenarios, and associated keywords for each risk. 
-                The summary should include the following elements:
-                1. **Index and Risk Level** 
-                2. **Detailed Risk Information** - including risk type, simulation scenario, and **key improvements** 
-                3. **Keywords related to the risk** 
-                4. **Responsible manager** identified in the provided documents 
-                5. **Document Information** - such as document title and summary
-                The entire response must be written in Korean.
-
-            """
-        }
-
-        self.user_prompts = {
-            "analyze_image_risks": """
-
-                ## Instruction
-                The following is an image captured at a POSCO steel manufacturing site in South Korea. Your task is to:
-                1. Analyze the image and identify **three potential safety hazards**.
-                2. For each hazard:
-                - Identify the hazard.
-                - Assess the risk level using a scale from 1 to 5 (where 1 is the lowest risk and 5 is the highest).
-                - Simulate potential accident scenarios related to the hazard.
-                - Suggest actionable recommendations for improving safety related to that hazard.
-                3. Write all of your analysis **in Korean**.
-
-                ### Example Output Structure:
-                ```
-                ### 위험성 분석 레포트
-                1. **위험 요소**
-                - 위험 요소 1: [위험 요소에 대한 설명]
-                - 위험 요소 2: [위험 요소에 대한 설명]
-                ...
-                2. **위험 수준 평가** (위험 수준 숫자가 높을수록 위험도가 높음)
-                - 위험 요소 1: [위험 수준 (1/2/3/4/5)] - [평가 이유]
-                - 위험 요소 2: [위험 수준 (1/2/3/4/5)] - [평가 이유]
-                ...
-                3. **위험 상황 시뮬레이션**
-                - 위험 요소 1: [발생 가능한 사고나 상황에 대한 시뮬레이션]
-                - 위험 요소 2: [발생 가능한 사고나 상황에 대한 시뮬레이션]
-                ...
-                4. **조치 방법**
-                - 위험 요소 1: [제안된 조치 방법]
-                - 위험 요소 2: [제안된 조치 방법]
-                ...
-                ```
-
-                ### Input:
-                The image is provided as a Base64-encoded string. 
-                Please analyze this image and provide your response strictly in Korean using the above specified Markdown format.
-   
-            """,
-            "format_risk_as_json": """
-               
-                ## Instruction 
-                The following task involves organizing information into a **structured JSON format** based on the provided schema. Each entry in the array should include the following fields and adhere to these guidelines:
-                - `index`: An integer that serves as a unique identifier for each entry.
-                - `riskLevel`: A string indicating the severity of the identified risk. Choose one of the following predefined levels: 1 to 5 (where 1 represents the lowest risk and 5 represents the highest risk).
-                - `content`: A nested object containing detailed information about the identified risk and its management. It should include:
-                    - `potentialRisk`: A string representing the type of potential risk. Choose one of the following predefined categories:
-                    [`가스중독 및 질식`, `감전`, `교통`, `기타`, `낙하 및 비래`, `무리한동작`, `베임`, `붕괴 및 도괴`, `업무상질병`, `유해물접촉`, `이상온도접촉`, `전도`, `찔림`, `추락`, `충돌 및 격돌`, `파열`, `폭발`, `협착`, `화재`]
-                    - `mitigationPlan`: A string providing a proposed plan to mitigate or address the identified risk.
-                    - `simulation`: A string detailing the simulation performed to evaluate or address the risk. Include the method used, conditions simulated, expected outcomes, and any relevant observations.
-                    - `keywords`: An array of exactly three strings, extracted from the content, that represent key terms for search and indexing purposes. These should include significant terms such as the potential risk, key elements of the mitigation plan, and notable points from the simulation.
-
-                ### Key Usage:
-                1. **Risk Level Field**:
-                - **Description**: Assign a risk assessment level between 1 (lowest risk) and 5 (highest risk) based on the severity of the identified risk. The risk level should be determined by evaluating the potential impact and probability of the risk event.
-                - **Action**: Provide a numeric value (1-5) representing the risk severity. Ensure that the risk level accurately reflects the overall danger of the situation.
-                2. **Content Field**:
-                - **Potential Risk**:
-                    - **Description**: Identify the type of risk from the predefined categories (e.g., '가스중독 및 질식', '감전', '교통', etc.). This should be chosen based on the nature of the risk described.
-                    - **Action**: Select one of the predefined categories that best represents the identified risk.
-                - **Mitigation Plan**:
-                    - **Description**: Provide a safety improvement recommendation or action plan to mitigate the identified risk. The plan should be actionable, clear, and contextually relevant to the risk type.
-                    - **Action**: Write a concise, specific plan that can help reduce or eliminate the risk. Ensure that the recommendation directly addresses the risk in a practical manner.
-                - **Simulation**:
-                    - **Description**: Document the details of any simulations performed to assess the risk. This should include the method used, conditions simulated, expected outcomes, and relevant observations that help in understanding how the risk behaves under certain conditions.
-                    - **Action**: Provide detailed information about the simulation, including the purpose, methodology, and key results or insights that help inform risk management decisions.
-                3. **Keywords Field**:
-                - **Description**: Extract 3 significant keywords from the content to facilitate search and indexing. These should capture the most important aspects of the risk evaluation, such as the type of potential risk, key aspects of the mitigation plan, or notable findings from the simulation.
-                - **Action**: Choose exactly 3 keywords that best represent the risk evaluation entry. These should be relevant, distinct, and help in quick identification or retrieval of similar records in a system.
-
-                ### Output Schema:
-                [
-                    {{
-                    "type": "array",
-                    "items": {{
-                        "type": "object",
-                        "properties": {{
-                        "index": {{
-                            "type": "integer",
-                            "description": "Each item's unique identifier."
-                        }},
-                        "riskLevel": {{
-                            "type": "integer",
-                            "enum": [1, 2, 3, 4, 5],
-                            "description": "The risk assessment level, where 1 represents the lowest risk and 5 represents the highest risk."
-                        }},
-                        "content": {{
-                            "type": "object",
-                            "properties": {{
-                            "potentialRisk": {{
-                                "type": "string",
-                                "enum": ['가스중독 및 질식', '감전', '교통', '기타', '낙하 및 비래', '무리한동작',
-                                '베임', '붕괴 및 도괴', '업무상질병', '유해물접촉', '이상온도접촉', '전도',
-                                '찔림', '추락', '충돌 및 격돌', '파열', '폭발', '협착', '화재'],
-                                "description": "The type of potential risk. Choose one of the predefined categories."
-                            }},
-                            "mitigationPlan": {{
-                                "type": "string",
-                                "description": "The proposed plan to mitigate or address the identified risk."
-                            }},
-                            "simulation": {{
-                                "type": "string",
-                                "description": "Provide a detailed account of the simulations performed. Include the method used, conditions simulated, expected outcomes, and any relevant observations."
-                            }}
-                            }},
-                            "required": ["potentialRisk", "simulation"],
-                            "description": "A nested object containing detailed information about risks and their management."
-                        }},
-                        "keywords": {{
-                            "type": "array",
-                            "items": {{
-                            "type": "string"
-                            }},
-                            "description": "A list of keywords extracted from the content for search and indexing purposes. Keywords should include significant terms such as the potential risk, key elements of the mitigation plan, and notable points from the simulation. Write exactly 3 keywords. "
-                        }}
-                        }},
-                        "required": ["index", "riskLevel", "content", "keywords"],
-                        "description": "An array of objects where each object represents a risk evaluation entry."
-                    }}
-                    ...
-                    }}
-                ]
-
-            """,
-            "retrieve_information": """
-
-                ## Instruction
-                The following is a **Risks JSON** containing analyzed risks and recommendations. Summarize this information using the specified format.
-
-                ## Document Information 
-                The following is the content of the document. The document contains details about the managers responsible for potential risks and past risk cases.
-
-                ### Output Schema:
-                [
-                    {{
-                        "type": "array",
-                        "items": {{
-                            "type": "object",
-                            "properties": {{
-                                "index": {{
-                                    "type": "integer",
-                                    "description": "Unique identifier for the risk."
-                                }},
-                                "riskLevel": {{
-                                    "type": "integer",
-                                    "enum": [1, 2, 3, 4, 5],
-                                    "description": "The risk assessment level, where 1 represents the lowest risk and 5 represents the highest risk."
-                                }},
-                                "content": {{
-                                    "type": "object",
-                                    "description": "Detailed content about the risk.",
-                                    "properties": {{
-                                        "potentialRisk": {{
-                                            "type": "string",
-                                            "description": "The identified potential risk.",
-                                            "enum": ['가스중독 및 질식', '감전', '교통', '기타', '낙하 및 비래', '무리한동작',
-                                                        '베임', '붕괴 및 도괴', '업무상질병', '유해물접촉', '이상온도접촉', '전도',
-                                                        '찔림', '추락', '충돌 및 격돌', '파열', '폭발', '협착', '화재']
-                                        }},
-                                        "mitigationPlan": {{
-                                            "type": "string",
-                                            "description": "The plan to mitigate the risk."
-                                        }},
-                                        "simulation": {{
-                                            "type": "string",
-                                            "description": "Simulation scenario of the risk occurrence."
-                                        }}
-                                    }},
-                                    "required": ["potentialRisk", "mitigationPlan", "simulation"]
-                                }},
-                                "keywords": {{
-                                    "type": "array",
-                                    "description": "List of keywords related to the risk.",
-                                    "items": {{
-                                        "type": "string"
-                                    }}
-                                }},
-                                "manager": {{
-                                    "type": "array",
-                                    "description": "List of managers associated with the risk.",
-                                    "items": {{
-                                        "type": "object",
-                                        "properties": {{
-                                            "name": {{
-                                                "type": "string",
-                                                "description": "Name of the manager."
-                                            }},
-                                            "department": {{
-                                                "type": "string",
-                                                "description": "Department of the manager."
-                                            }},
-                                            "phonenumber": {{
-                                                "type": "string",
-                                                "description": "Contact phone number of the manager."
-                                            }},
-                                            "email": {{
-                                                "type": "string",
-                                                "description": "Contact email of the manager."
-                                            }}
-                                        }},
-                                        "required": ["name", "department", "phonenumber", "email"]
-                                    }}
-                                }},
-                                "documents": {{
-                                    "type": "array",
-                                    "description": "List of documents related to the risk.",
-                                    "items": {{
-                                        "type": "object",
-                                        "properties": {{
-                                            "title": {{
-                                                "type": "string",
-                                                "description": "Title of the document."
-                                            }},
-                                            "document_summary": {{
-                                                "type": "string",
-                                                "description": "Summary of the document."
-                                            }}
-                                        }},
-                                        "required": ["title", "document_summary"]
-                                    }}
-                                }}
-                            }},
-                            "required": ["index", "riskLevel", "content", "keywords", "manager", "documents"]
-                        }},
-                        ...
-                    }}
-                ]
-                       
-            """
-        }
-
-        self.tools = {
-            "format_risk_as_json": {
-                "type": "function",
-                "function": {
-                    "name": "output_risks_json",
-                    "description": "Converts analyzed risks into a structured JSON format based on the specified schema, including index, riskLevel, content, and keywords.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "data": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "index": {
-                                            "type": "integer",
-                                            "description": "Each item's unique identifier."
-                                        },
-                                        "riskLevel": {
-                                            "type": "integer",
-                                            "enum": [1, 2, 3, 4, 5],
-                                            "description": "The risk assessment level, where 1 represents the lowest risk and 5 represents the highest risk."
-                                        },
-                                        "content": {
-                                            "type": "object",
-                                            "properties": {
-                                                "potentialRisk": {
-                                                    "type": "string",
-                                                    "enum": ['가스중독 및 질식', '감전', '교통', '기타', '낙하 및 비래', '무리한동작',
-                                                                '베임', '붕괴 및 도괴', '업무상질병', '유해물접촉', '이상온도접촉', '전도',
-                                                                '찔림', '추락', '충돌 및 격돌', '파열', '폭발', '협착', '화재'],
-                                                    "description": "The type of potential risk. Choose one of the predefined categories."
-                                                },
-                                                "mitigationPlan": {
-                                                    "type": "string",
-                                                    "description": "The proposed plan to mitigate or address the identified risk."
-                                                },
-                                                "simulation": {
-                                                    "type": "string",
-                                                    "description": "Provide a detailed account of the simulations performed. Include the method used, conditions simulated, expected outcomes, and any relevant observations."
-                                                }
-                                            },
-                                            "required": ["potentialRisk", "simulation"],
-                                            "description": "A nested object containing detailed information about risks and their management."
-                                        },
-                                        "keywords": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "string"
-                                            },
-                                            "description": "A list of keywords extracted from the content for search and indexing purposes. Keywords should include significant terms such as the potential risk, key elements of the mitigation plan, and notable points from the simulation. Write exactly 3 keywords."
-                                        }
-                                    },
-                                    "required": ["index", "riskLevel", "content", "keywords"]
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o-2024-11-20",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": user_prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{image_base64}"
                                 }
                             }
-                        },
-                        "required": ["data"]
+                        ]
                     }
-                }
-            },
-            "retrieve_information": {
-                "type": "function",
-                "function": {
-                    "name": "nearmiss_details",
-                    "description": "Provides detailed information about identified risks, their mitigation plans, related personnel, and associated documents.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "risks": {
-                                "type": "array",
-                                "description": "Array of risks with detailed information, including personnel and document references.",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "index": {
-                                            "type": "integer",
-                                            "description": "Unique identifier for the risk."
-                                        },
-                                        "riskLevel": {
-                                            "type": "integer",
-                                            "enum": [1, 2, 3, 4, 5],
-                                            "description": "The risk assessment level, where 1 represents the lowest risk and 5 represents the highest risk."
-                                        },
-                                        "content": {
-                                            "type": "object",
-                                            "description": "Detailed content about the risk.",
-                                            "properties": {
-                                                "potentialRisk": {
-                                                    "type": "string",
-                                                    "description": "The identified potential risk.",
-                                                    "enum": ['가스중독 및 질식', '감전', '교통', '기타', '낙하 및 비래', '무리한동작',
-                                                                '베임', '붕괴 및 도괴', '업무상질병', '유해물접촉', '이상온도접촉', '전도',
-                                                                '찔림', '추락', '충돌 및 격돌', '파열', '폭발', '협착', '화재']
-                                                },
-                                                "mitigationPlan": {
-                                                    "type": "string",
-                                                    "description": "The plan to mitigate the risk."
-                                                },
-                                                "simulation": {
-                                                    "type": "string",
-                                                    "description": "Simulation scenario of the risk occurrence."
-                                                }
-                                            },
-                                            "required": ["potentialRisk", "mitigationPlan", "simulation"]
-                                        },
-                                        "keywords": {
-                                            "type": "array",
-                                            "description": "List of keywords related to the risk.",
-                                            "items": {
-                                                "type": "string"
-                                            }
-                                        },
-                                        "manager": {
-                                            "type": "array",
-                                            "description": "List of managers associated with the risk.",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "name": {
-                                                        "type": "string",
-                                                        "description": "Name of the manager."
-                                                    },
-                                                    "department": {
-                                                        "type": "string",
-                                                        "description": "Department of the manager."
-                                                    },
-                                                    "phonenumber": {
-                                                        "type": "string",
-                                                        "description": "Contact phone number of the manager."
-                                                    },
-                                                    "email": {
-                                                        "type": "string",
-                                                        "description": "Contact email of the manager."
-                                                    }
-                                                },
-                                                "required": ["name", "department", "phonenumber", "email"]
-                                            }
-                                        },
-                                        "documents": {
-                                            "type": "array",
-                                            "description": "List of documents related to the risk.",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "title": {
-                                                        "type": "string",
-                                                        "description": "Title of the document."
-                                                    },
-                                                    "document_summary": {
-                                                        "type": "string",
-                                                        "description": "Summary of the document."
-                                                    }
-                                                },
-                                                "required": ["title", "document_summary"]
-                                            }
-                                        }
-                                    },
-                                    "required": ["index", "riskLevel", "content", "keywords", "manager", "documents"]
-                                }
-                            }
-                        },
-                        "required": ["risks"]
-                    }
-                }
-            }
-        }
+                ],
+                temperature=0.3,
+                max_tokens=16000,
+                top_p=1,
+                frequency_penalty=0,
+                presence_penalty=0
+            )
+            return response, image_base64
+        except Exception as e:
+            return {"error": str(e)}, image_base64
 
+    def format_risk_as_json(self, analyzed_image_risks):
+        """
+        잠재적 위험 요소 분석 결과를 JSON 형식으로 변환하는 메서드.
+        :param analyzed_image_risks: 잠재적 위험 요소 평문 레포트
+        :return: JSON 포맷의 OpenAI API 응답
+        """
+        prompt_manager = FormatRiskAsJson()
+        system_prompt = prompt_manager.get_system_prompt()
+        user_prompt = prompt_manager.get_user_prompt(analyzed_image_risks)
+        tools = [prompt_manager.get_tool()]
 
-    def get_system_prompt(self, task_name):
-        return self.system_prompts.get(task_name, "Task not found.")
+        try:
+            # 메시지 정의
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
 
-    def get_user_prompt(self, task_name):
-        return self.user_prompts.get(task_name, "Task not found.")
+            # OpenRouter API 호출
+            response = self.client.chat.completions.create(
+                model="gpt-4o-2024-11-20",
+                messages=messages,
+                tools=tools,  # tools 필드 추가
+                tool_choice=tools[0],  # 도구 호출 강제
+                temperature=0.3,
+                max_tokens=16000,
+                top_p=1,
+                frequency_penalty=0,
+                presence_penalty=0
+            )
 
-    def get_tool(self, task_name):
-        return self.tools.get(task_name, "Tool not found.")
+            # 결과 반환
+            return response
+        except Exception as e:
+            return {"error": str(e)}
 
+    def retrieve_information(self, formatted_risks_json, doc_search_keyword):
+        """
+        JSON으로 구성된 잠재적 위험 요소 분석 결과에서 관련 담당자 정보를 검색하고 출력하는 메서드.
+        :param formatted_risks_json: JSON 형식의 위험 요소 분석 결과
+        :param doc_search_keyword: 검색할 문서 키워드
+        :return: OpenAI API 응답
+        """
 
-class AnalyzeImageRisks(PromptManager):
-    def get_system_prompt(self):
-        return super().get_system_prompt("analyze_image_risks")
+        def read_docx(file_path):
+            try:
+                # 파일 불러오기
+                doc = Document(file_path)
+                full_text = []
 
-    def get_user_prompt(self):
-        return super().get_user_prompt("analyze_image_risks")
+                # 첫 번째 테이블을 마크다운으로 변환
+                if doc.tables:
+                    first_table = doc.tables[0]
+                    table_md = []
 
+                    # 테이블의 첫 번째 행을 헤더로 사용
+                    header_cells = first_table.rows[0].cells
+                    header = '| ' + ' | '.join(cell.text for cell in header_cells) + ' |'
+                    separator = '| ' + ' | '.join('---' for _ in header_cells) + ' |'
+                    table_md.append(header)
+                    table_md.append(separator)
 
-class FormatRiskAsJson(PromptManager):
-    def get_system_prompt(self):
-        return super().get_system_prompt("format_risk_as_json")
+                    # 나머지 행을 본문으로 사용
+                    for row in first_table.rows[1:]:
+                        row_data = '| ' + ' | '.join(cell.text for cell in row.cells) + ' |'
+                        table_md.append(row_data)
 
-    def get_user_prompt(self, analyzed_image_risks):
-        return super().get_user_prompt("format_risk_as_json") + f"### Input Text :\n{analyzed_image_risks}\n"
+                    full_text.append('\n'.join(table_md))
 
-    def get_tool(self):
-        return super().get_tool("format_risk_as_json")
+                # 모든 문단(paragraphs) 읽기
+                for para in doc.paragraphs:
+                    full_text.append(para.text)
 
+                return '\n'.join(full_text)
+            except Exception as e:
+                return f"오류 발생: {e}"
 
-class RetrieveInformation(PromptManager):
-    def get_system_prompt(self):
-        return super().get_system_prompt("retrieve_information")
+        try:
+            doc_text = read_docx(f"documents/유해위험 사례집 _ {doc_search_keyword}.docx")
+        except Exception as e:
+            print(f"문서 읽기 중 오류 발생: {str(e)}")
+            return {"error": f"문서 읽기 중 오류 발생: {str(e)}"}
 
-    def get_user_prompt(self, doc_search_keyword, document_text, formatted_risks_json):
-        user_prompt = super().get_user_prompt('retrieve_information')
-        user_prompt += f"### **Risks JSON**:\n{formatted_risks_json}\n"
-        user_prompt += f"\n### Related Documents\n-Find the **mitigationPlan**, **manager**, and **documents** in the below document, and respond in the above specified schema format:\n"
-        user_prompt += f"\n#### Document Title: 니어미스 사례집 _ {doc_search_keyword}.docx"
-        user_prompt += f"\n#### Document Contents:\n{document_text}\n"
-        return user_prompt
+        prompt_manager = RetrieveInformation()
+        system_prompt = prompt_manager.get_system_prompt()
+        user_prompt = prompt_manager.get_user_prompt(doc_search_keyword, doc_text, formatted_risks_json)
+        tools = [prompt_manager.get_tool()]
 
-    def get_tool(self):
-        return super().get_tool("retrieve_information")
-
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o-2024-11-20",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                tools=tools,
+                tool_choice=tools[0],  # 도구 호출 강제
+                temperature=0.3,
+                max_tokens=16000,
+                top_p=1,
+                frequency_penalty=0,
+                presence_penalty=0
+            )
+            print(response.json())
+            return response
+        except Exception as e:
+            print(e)
+            return {"error": str(e)}
