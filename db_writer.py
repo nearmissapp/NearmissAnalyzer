@@ -9,6 +9,14 @@ import os
 import subprocess
 import platform
 
+db_config = {
+    "host": "222.122.202.31",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "",
+    "port": 5432
+}
+
 class DatabaseManager:
     def __init__(self, db_config):
         self.db_config = db_config
@@ -96,12 +104,12 @@ class DatabaseManager:
             keywords = data["keywords"]
 
             manager_name = data["manager"][0]["name"]
-            manager_department = data["manager"][0]["department"]
-            manager_contact_phone = data["manager"][0]["phonenumber"]
-            manager_contact_email = data["manager"][0]["email"]
+            manager_department = data["manager"]["department"]
+            manager_contact_phone = data["manager"]["phonenumber"]
+            manager_contact_email = data["manager"]["email"]
 
-            document_title = data["documents"][0]["title"]
-            document_summary = data["documents"][0]["document_summary"]
+            document_title = data["documents"]["title"]
+            document_summary = data["documents"]["document_summary"]
             image_base64 = data["image_base64"]
 
             # user_name 및 password 설정
@@ -135,3 +143,27 @@ class DatabaseManager:
         """키를 기준으로 특정 값을 수정합니다."""
         # 데이터 수정 로직 구현
         pass
+
+    def check_all_column_types(self):
+        """TB_NEARMISS_REPORT_ANALYZER 테이블의 모든 컬럼과 데이터 타입을 확인합니다."""
+        try:
+            self.connect()
+            cursor = self.connection.cursor()
+            check_query = '''
+            SELECT column_name, data_type
+            FROM information_schema.columns
+            WHERE table_name = 'TB_NEARMISS_REPORT_ANALYZER';
+            '''
+            cursor.execute(check_query)
+            results = cursor.fetchall()
+            if results:
+                for column_name, data_type in results:
+                    print(f"컬럼 이름: {column_name}, 데이터 타입: {data_type}")
+            else:
+                print("테이블을 찾을 수 없습니다.")
+        except Exception as e:
+            print(f"컬럼 타입 확인 중 오류 발생: {e}")
+        finally:
+            if self.connection:
+                cursor.close()
+                self.disconnect()
