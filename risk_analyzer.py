@@ -1,3 +1,5 @@
+# risk_analyzer.py
+
 import base64
 import os
 from openai import OpenAI
@@ -14,7 +16,6 @@ class RiskAnalysisProcessor:
         클래스 초기화 메서드
         """
         self.api_key = os.getenv("OPENAI_API_KEY")
-        print(self.api_key)
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY가 .env 파일에 설정되지 않았습니다.")
 
@@ -40,7 +41,6 @@ class RiskAnalysisProcessor:
         :param image_path: 분석할 이미지 파일 경로
         :return: OpenAI API 응답
         """
-        print("=== AnalyzeImageRisks ===")
         prompt_manager = AnalyzeImageRisks()
         system_prompt = prompt_manager.get_system_prompt()
         user_prompt = prompt_manager.get_user_prompt()
@@ -122,16 +122,37 @@ class RiskAnalysisProcessor:
             try:
                 # 파일 불러오기
                 doc = Document(file_path)
+                full_text = []
+
+                # 첫 번째 테이블을 마크다운으로 변환
+                if doc.tables:
+                    first_table = doc.tables[0]
+                    table_md = []
+
+                    # 테이블의 첫 번째 행을 헤더로 사용
+                    header_cells = first_table.rows[0].cells
+                    header = '| ' + ' | '.join(cell.text for cell in header_cells) + ' |'
+                    separator = '| ' + ' | '.join('---' for _ in header_cells) + ' |'
+                    table_md.append(header)
+                    table_md.append(separator)
+
+                    # 나머지 행을 본문으로 사용
+                    for row in first_table.rows[1:]:
+                        row_data = '| ' + ' | '.join(cell.text for cell in row.cells) + ' |'
+                        table_md.append(row_data)
+
+                    full_text.append('\n'.join(table_md))
 
                 # 모든 문단(paragraphs) 읽기
-                full_text = [para.text for para in doc.paragraphs]
+                for para in doc.paragraphs:
+                    full_text.append(para.text)
 
                 return '\n'.join(full_text)
             except Exception as e:
                 return f"오류 발생: {e}"
 
         try:
-            doc_text = read_docx(f"documents/니어미스 사례집 _ {doc_search_keyword}.docx")
+            doc_text = read_docx(f"documents/유해위험 사례집 _ {doc_search_keyword}.docx")
         except Exception as e:
             print(f"문서 읽기 중 오류 발생: {str(e)}")
             return {"error": f"문서 읽기 중 오류 발생: {str(e)}"}
