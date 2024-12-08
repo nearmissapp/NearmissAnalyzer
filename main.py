@@ -132,64 +132,64 @@ def send_email(subject, body, to_email):
         if server is not None:  # server가 None이 아닐 때만 quit 호출
             server.quit()  # 서버 연결 종료
 
-print("=== 유해위험 신고 프로그램 ===")
-file_name = "test6"  # file_name 변수 추가
-file_path = complete_file_path(file_name)  # file_path를 complete_file_path 함수로 설정
+# print("=== 유해위험 신고 프로그램 ===")
+# file_name = "기차"  # file_name 변수 추가
+# file_path = complete_file_path(file_name)  # file_path를 complete_file_path 함수로 설정
 
-# Step 1: 이미지 읽기 및 클래스 초기화
-print("Step 1: 이미지 읽기 및 클래스 초기화 시작")
-image, save_path, processor = initialize_processor_and_load_image(file_path)
-print("Step 1 완료: 이미지 및 프로세서 초기화 완료")
+# # Step 1: 이미지 읽기 및 클래스 초기화
+# print("Step 1: 이미지 읽기 및 클래스 초기화 시작")
+# image, save_path, processor = initialize_processor_and_load_image(file_path)
+# print("Step 1 완료: 이미지 및 프로세서 초기화 완료")
 
-# Step 2: 이미지 분석 실행
-print("Step 2: 이미지 분석 실행 시작")
-analysis_response, image_base64 = analyze_image(processor, save_path)
-print("Step 2 완료: 이미지 분석 결과")
-print(analysis_response)
+# # Step 2: 이미지 분석 실행
+# print("Step 2: 이미지 분석 실행 시작")
+# analysis_response, image_base64 = analyze_image(processor, save_path)
+# print("Step 2 완료: 이미지 분석 결과")
+# print(analysis_response)
 
-# Step 3: 분석 결과를 JSON 변환
-print("Step 3: 분석 결과를 JSON 변환 시작")
-json_response = convert_analysis_to_json(processor, analysis_response)
-print("Step 3 완료: JSON 변환 결과")
-print(json_response)
+# # Step 3: 분석 결과를 JSON 변환
+# print("Step 3: 분석 결과를 JSON 변환 시작")
+# json_response = convert_analysis_to_json(processor, analysis_response)
+# print("Step 3 완료: JSON 변환 결과")
+# print(json_response)
 
-# Step 4: 담당자 및 관련 문서 탐색
-print("Step 4: 담당자 및 관련 문서 탐색 시작")
-hazard_response = retrieve_information(processor, json_response)
-print("Step 4 완료: 탐색 결과")
-print(hazard_response)
+# # Step 4: 담당자 및 관련 문서 탐색
+# print("Step 4: 담당자 및 관련 문서 탐색 시작")
+# hazard_response = retrieve_information(processor, json_response)
+# print("Step 4 완료: 탐색 결과")
+# print(hazard_response)
 
-# Step 5: 사진 및 기타 정보 입력
-print("Step 5: 사진 및 기타 정보 입력 시작")
-hazard_response = add_image_to_entries(hazard_response, image_base64)
-print("Step 5 완료: 이미지 정보 추가 완료")
+# # Step 5: 사진 및 기타 정보 입력
+# print("Step 5: 사진 및 기타 정보 입력 시작")
+# hazard_response = add_image_to_entries(hazard_response, image_base64)
+# print("Step 5 완료: 이미지 정보 추가 완료")
 
-# Step 6: 데이터베이스에 저장
-print("Step 6: 데이터베이스에 저장 시작")
-db_config = {
-    "host": "222.122.202.31",
-    "database": "postgres",
-    "user": "postgres",
-    "password": "",
-    "port": 5432
-}
-save_to_database(hazard_response, db_config)
-print("Step 6 완료: 데이터베이스 저장 완료")
+# # Step 6: 데이터베이스에 저장
+# print("Step 6: 데이터베이스에 저장 시작")
+# db_config = {
+#     "host": "222.122.202.31",
+#     "database": "postgres",
+#     "user": "postgres",
+#     "password": "",
+#     "port": 5432
+# }
+# save_to_database(hazard_response, db_config)
+# print("Step 6 완료: 데이터베이스 저장 완료")
 
-# 결과 확인
-print("\n=== 결과 확인 ===")
-hazard_response_copy = hazard_response.copy()
-hazard_response_copy["image_base64"] = hazard_response_copy["image_base64"][:20] + "..."
-print(json.dumps(hazard_response_copy, indent=4, ensure_ascii=False))
+# # 결과 확인
+# print("\n=== 결과 확인 ===")
+# hazard_response_copy = hazard_response.copy()
+# hazard_response_copy["image_base64"] = hazard_response_copy["image_base64"][:20] + "..."
+# print(json.dumps(hazard_response_copy, indent=4, ensure_ascii=False))
 
-# 이메일 전송
-print("\n=== 이메일 전송 ===")
-email_subject = "유해위험 신고 알림"
-email_body = json.dumps(hazard_response_copy, indent=4, ensure_ascii=False)
-send_email(subject=email_subject, body=email_body, to_email="seok.jw@posco.com")
+# # 이메일 전송
+# print("\n=== 이메일 전송 ===")
+# email_subject = "유해위험 신고 알림"
+# email_body = json.dumps(hazard_response_copy, indent=4, ensure_ascii=False)
+# send_email(subject=email_subject, body=email_body, to_email="seok.jw@posco.com")
 
-# db 확인
-print("\n=== db 확인 ===")
-db_manager = DatabaseManager(db_config)
-db_manager.fetch_all()
+# # db 확인
+# print("\n=== db 확인 ===")
+# db_manager = DatabaseManager(db_config)
+# db_manager.fetch_all()
 
